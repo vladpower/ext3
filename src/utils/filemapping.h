@@ -1,5 +1,5 @@
-#ifndef AFISKON_FILEMAPPING_H
-#define AFISKON_FILEMAPPING_H
+#ifndef FILEMAPPING_H
+#define FILEMAPPING_H
 
 struct FileMapping;
 
@@ -8,4 +8,4 @@ unsigned char* fileMappingGetPointer(FileMapping * mapping);
 unsigned int fileMappingGetSize(FileMapping * mapping);
 void fileMappingClose(FileMapping * mapping);
 
-#endif //AFISKON_FILEMAPPING_H
+#endif //FILEMAPPING_H
