@@ -7,7 +7,7 @@ using namespace std;
 string identifyFile(FileMapping* imgDrive, int sectorNum)
 {
     long secOffset = SECTOR_SIZE * sectorNum;
-    if(fileMappingGetSize(imgDrive) < secOffset) {
+    if(fileMappingGetSize(imgDrive) < secOffset + SECTOR_SIZE) {
         cerr << "Sector out of range!" << endl;
         throw 1;
     }
