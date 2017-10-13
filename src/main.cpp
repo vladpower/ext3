@@ -22,6 +22,7 @@ int main(int argc, char* argv[])
     } catch(int e) {
 
     }
+    showPartitionTable(imgDrive);
 
 
     fileMappingClose(imgDrive);

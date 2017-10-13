@@ -4,5 +4,6 @@
 #include <string>
 
 std::string identifyFile(FileMapping* imgDrive, int sectorNum);
+void showPartitionTable(FileMapping* imgDrive);
 
 #endif

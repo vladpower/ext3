@@ -15,11 +15,39 @@ string identifyFile(FileMapping* imgDrive, int sectorNum)
     fRes = "/File/Name";
 
 
-    unsigned char* data = fileMappingGetPointer(imgDrive);
-    unsigned char* it = data + secOffset;
-    for(int i = 0;i<SECTOR_SIZE;i++) {
-        cout << (int)*(it++)<<' ';
-    }
+
 
     return fRes;
+}
+
+void showPartitionTable(FileMapping* imgDrive) {
+    unsigned char* data = fileMappingGetPointer(imgDrive);
+    unsigned char* it = data + 446;
+    int bootIndicator[4];
+    int startCHS[4];
+    int partionType[4];
+    int endCHS[4];
+    int startSector[4];
+    int partionSize[4];
+    for(int i = 0;i<4;i++) {
+        bootIndicator[i] = *(it++);
+        startCHS[i] = (it[2]<<16) + (it[1]<<8) + it[0];
+        it+=3;
+        partionType[i] = *(it++);
+        endCHS[i] = (it[2]<<16) + (it[1]<<8) + it[0];
+        it+=3;
+        startSector[i] = (it[3]<<24) + (it[2]<<16) + (it[1]<<8) + it[0];
+        it+=4;
+        partionSize[i] = (it[3]<<24) + (it[2]<<16) + (it[1]<<8) + it[0];
+        it+=4;
+    }
+    for(int i = 0;i<4;i++) {
+        cout << "Table Entry for Primary Partition #" << i+1 << endl;
+        cout << "Boot Indicator " <<hex<< bootIndicator[i] << endl;
+        cout << "Starting CHS value " << startCHS[i] << endl;
+        cout << "Partition-type Descriptor " << partionType[i] << endl;
+        cout << "Ending CHS values " << endCHS[i] << endl;
+        cout << "Starting Sector " << startSector[i] << endl;
+        cout << "Partition Size (in sectors) " << partionSize[i] << endl;
+    }
 }
