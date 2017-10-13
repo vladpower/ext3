@@ -6,6 +6,7 @@
 std::string identifyFile(FileMapping* imgDrive, uint sectorNum);
 unsigned long  getIntNum(unsigned char* it, int n);
 int getStartExt3Sec(FileMapping* imgDrive, uint sectorNum);
+int getBlockGroup(FileMapping* imgDrive, uint secBG, uint* blocksCount, uint* blocksPerGroup);
 void checkRangeSec(FileMapping* imgDrive, uint sectorNum);
 void showPartitionTable(FileMapping* imgDrive);
 void showSector(FileMapping* imgDrive, uint sectorNum, bool isHex = false);

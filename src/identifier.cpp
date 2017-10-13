@@ -117,6 +117,7 @@ int getStartExt3Sec(FileMapping* imgDrive, uint sectorNum)
             continue;
         uint endSector = startSector[i] + partionSize[i] - 1;
         if(startSector[i] <= sectorNum && sectorNum <= endSector) {
+            // !!!need to check that the FS is not other linux FS!!!
             if(partionType[i] == EXT3_PARTION_TYPE) {
                 return startSector[i];
             } else {
@@ -128,5 +129,18 @@ int getStartExt3Sec(FileMapping* imgDrive, uint sectorNum)
     }
     cerr << "Sector does not belong to any partition" << endl;
     throw 3;
+
+}
+
+#define SUPER_BLOCK_OFFSET    1024
+#define BLOCKS_COUNT_OFFSET      4
+#define BLOCKS_PER_GROUP_OFFSET 32
+#define BLOCK_GROUP_OFFSET    2048
+
+int getBlockGroup(FileMapping* imgDrive, uint secBG, uint* blocksCount, uint* blocksPerGroup)
+{
+    unsigned char* data = fileMappingGetPointer(imgDrive);
+    unsigned char* superBlock = data + (secBG * SECTOR_SIZE + BLOCK_GROUP_OFFSET);
+
 
 }
