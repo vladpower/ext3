@@ -19,10 +19,12 @@ int main(int argc, char* argv[])
         return -1;
     try {
         cout << identifyFile(imgDrive, sectorNum) << endl;
+        //showSector(imgDrive,sectorNum);
+        cout << "Starting sector: " << getStartExt3Sec(imgDrive,sectorNum)<<endl;
     } catch(int e) {
 
     }
-    showPartitionTable(imgDrive);
+
 
 
     fileMappingClose(imgDrive);
