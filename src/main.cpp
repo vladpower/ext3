@@ -19,8 +19,6 @@ int main(int argc, char* argv[])
         return -1;
     try {
         cout << "File: "<<identifyFile(imgDrive, sectorNum) << endl;
-        showSector(imgDrive,sectorNum,true);
-        cout << "Starting sector: " << getStartExt3Sec(imgDrive,sectorNum)<<endl;
     } catch(int e) {
 
     }
