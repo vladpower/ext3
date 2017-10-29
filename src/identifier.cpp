@@ -1,18 +1,22 @@
 #include "identifier.h"
 #include <iostream>
-#include <vector>
-#define SECTOR_SIZE 512
+#include <string>
+#include <map>
+
 using namespace std;
 
+vector<string> ext3FileNames;
+map<uint,uint> sectorFile;
+
+#define SECTOR_SIZE 512
 
 string identifyFile(FileMapping* imgDrive, uint sectorNum)
 {
     checkRangeSec(imgDrive, sectorNum);
     string fRes;
-    fRes = "/File/Name";
     uint blocksCount;
     uint blocksPerGroup;
-    getBlockGroup(imgDrive,getStartExt3Sec(imgDrive, sectorNum),blocksCount,blocksPerGroup);
+    return getBlockGroup(imgDrive,getStartExt3Sec(imgDrive, sectorNum),blocksCount,blocksPerGroup, sectorNum);
 
 
     return fRes;
@@ -138,19 +142,23 @@ uint getStartExt3Sec(FileMapping* imgDrive, uint sectorNum)
 #define SUPER_BLOCK_OFFSET    1024
 #define BLOCKS_COUNT_OFFSET      4
 #define BLOCKS_PER_GROUP_OFFSET 32
+#define INODES_PER_GROUP_OFFSET 40
 #define BLOCK_GROUP_OFFSET    2048
 #define INODE_TABLE_OFFSET       8
-#define INODE_COUNT_OFFSET       16
-#define INODE_SIZE               128
-#define INODE_IBLOCK_OFFSET      40
+#define INODE_COUNT_OFFSET      16
+#define INODE_SIZE             128
+#define INODE_IBLOCK_OFFSET     40
+#define DIRECTORY_NAMELEN_OFFSET 6
+#define DIRECTORY_NAME_OFFSET    8
 
-uint getBlockGroup(FileMapping* imgDrive, uint secBeg, uint& blocksCount, uint& blocksPerGroup)
+string getBlockGroup(FileMapping* imgDrive, uint secBeg, uint& blocksCount, uint& blocksPerGroup, uint sectorNum)
 {
     unsigned char* data = fileMappingGetPointer(imgDrive);
     unsigned char* bootBlock = data + secBeg * SECTOR_SIZE;
     unsigned char* superBlock = bootBlock + SUPER_BLOCK_OFFSET;
     blocksCount = getIntNum(superBlock + BLOCKS_COUNT_OFFSET, 4);
     blocksPerGroup = getIntNum(superBlock + BLOCKS_PER_GROUP_OFFSET, 4);
+    uint inodesPerGroup = getIntNum(superBlock + INODES_PER_GROUP_OFFSET, 4);
     uint blockGroup = (blocksCount + blocksPerGroup - 1) / blocksPerGroup; //round up
     unsigned char* groupDesc = bootBlock + BLOCK_GROUP_OFFSET;
     vector<uint> inodeTable(blockGroup);
@@ -162,6 +170,7 @@ uint getBlockGroup(FileMapping* imgDrive, uint secBeg, uint& blocksCount, uint& 
     cout << "blocks num "<<blocksCount<<endl;
     cout << "blocks per group num "<<blocksPerGroup<<endl;
     cout << "block group "<<blockGroup<<endl;
+    cout << "inodes per group "<<inodesPerGroup<<endl;
     for(int i = 0; i < blockGroup; i++) {
         inodeTable[i] = getIntNum(groupDesc + INODE_TABLE_OFFSET, 4);
         inodeCount[i] = getIntNum(groupDesc+INODE_COUNT_OFFSET,2);
@@ -171,26 +180,91 @@ uint getBlockGroup(FileMapping* imgDrive, uint secBeg, uint& blocksCount, uint& 
         groupDesc+=32;
     }
     std::vector<uint> dirPointer(iCount);
-    int k = 0;
-    cout <<"Directory pointers"<<endl;
-    for(int i = 0; i < blockGroup; i++) {
-        unsigned char* inode = bootBlock + inodeTable[i] * BLOCK_SIZE;
-        for(int j = 0; j < inodeCount[i]; j++) {
-            dirPointer[k] = getIntNum(inode + INODE_IBLOCK_OFFSET,4);
-            cout << dirPointer[k]<<endl;
-            inode += INODE_SIZE;
-            k++;
+    cout <<"Root pointer"<<endl;
+    unsigned char* rootInode = bootBlock + inodeTable[0] * BLOCK_SIZE + INODE_SIZE;
+    uint rootDirPointer = getIntNum(rootInode + INODE_IBLOCK_OFFSET,4);
+    cout<<rootDirPointer<<endl;
+    unsigned char* dir = bootBlock + rootDirPointer * BLOCK_SIZE;
+    unsigned long iNumber = getIntNum(dir,4);
+    unsigned char* fileOffset = dir;
+    cout << "Inode number "<< iNumber << endl;
+    depthSearch(iNumber, fileOffset, bootBlock,inodeTable,inodesPerGroup,0,"/");
+
+    return ext3FileNames[sectorFile.find( (sectorNum - secBeg) / (BLOCK_SIZE / SECTOR_SIZE) )->second];
+
+    // for(int i = 1; i < iCount; i++) {
+    //     unsigned char* dir = bootBlock + (dirPointer[i]) * SECTOR_SIZE;
+    //     unsigned long iNumber = getIntNum(dir,4);
+    //     cout << "Inode number "<< iNumber << endl;
+    // }
+}
+
+void depthSearch(uint iNumber,unsigned char* fileOffset, unsigned char* bootBlock,vector<uint>& inodeTable,uint inodesPerGroup, uint nFile,string pathFile)
+{
+    if(iNumber==0)
+        return;
+    uint nameLen = getIntNum(fileOffset + DIRECTORY_NAMELEN_OFFSET,1);
+    unsigned char* fileName = fileOffset + DIRECTORY_NAME_OFFSET;
+
+    if(nFile>1) {
+        string strFileName(reinterpret_cast<char*>(fileName), nameLen);
+        ext3FileNames.push_back(pathFile + strFileName);
+        int nameNum = ext3FileNames.size()-1;
+
+
+        uint iGroup = iNumber / inodesPerGroup;
+        uint iReminder = iNumber % inodesPerGroup - 1;
+        unsigned char* inode = bootBlock + inodeTable[iGroup] * BLOCK_SIZE + iReminder * INODE_SIZE;
+        uint fileMode = getIntNum(inode,4);
+        uint fileType = fileMode / 10000;
+
+        cout <<" - "<<iGroup<<" - "<< getIntNum(inode,4) <<" - "<< iNumber <<endl;
+
+
+
+        for(int i = 0; i<12; i++ ) {
+            uint blockPointer = getIntNum(inode + INODE_IBLOCK_OFFSET + i*4,4);
+            if(blockPointer) {
+                cout<<"Block Pointer "<<blockPointer<<endl;
+                sectorFile.insert(pair<uint,uint>(blockPointer,nameNum) );
+            }
+
         }
+        showBlockPointers(inode + INODE_IBLOCK_OFFSET + 12*4, bootBlock, nameNum, 0);
+        showBlockPointers(inode + INODE_IBLOCK_OFFSET + 13*4, bootBlock, nameNum, 1);
+        showBlockPointers(inode + INODE_IBLOCK_OFFSET + 14*4, bootBlock, nameNum, 2);
+
+        uint dirPointer = getIntNum(inode + INODE_IBLOCK_OFFSET,4);
+        unsigned char* dir = bootBlock + dirPointer * BLOCK_SIZE;
+        unsigned long iNum = getIntNum(dir,4);
+
+        if(fileType==1)
+            depthSearch(iNum, dir, bootBlock,inodeTable,inodesPerGroup,0,pathFile + strFileName+'/');
     }
 
-    for(int i = 1; i < iCount; i++) {
-        unsigned char* dir = bootBlock + (dirPointer[i]) * SECTOR_SIZE;
-        unsigned long iNumber = getIntNum(dir,4);
-        cout << "Inode number "<< iNumber << endl;
+
+    fileOffset = fileName + ((nameLen-1)/4+1)*4;
+    iNumber = getIntNum(fileOffset,4);
+    depthSearch(iNumber, fileOffset, bootBlock,inodeTable,inodesPerGroup,nFile+1,pathFile);
+
+}
+
+void showBlockPointers(unsigned char* block, unsigned char* bootBlock, int nameNum, int depthIndirect)
+{
+    uint indierectBlockPointer = getIntNum(block,4);
+    cout<<"Indierect Block Pointer "<<indierectBlockPointer<<endl;
+    if(indierectBlockPointer) {
+        unsigned char* block = bootBlock + indierectBlockPointer * BLOCK_SIZE;
+        uint blockPointer = getIntNum(block,4);
+        while(blockPointer) {
+            if(depthIndirect>0) {
+                showBlockPointers(block, bootBlock, nameNum, depthIndirect - 1);
+            } else {
+                sectorFile.insert(pair<uint,uint>(blockPointer,nameNum) );
+            }
+            block+=4;
+            blockPointer = getIntNum(block,4);
+        }
+
     }
-
-
-
-
-
 }
